@@ -124,8 +124,8 @@ local function initPanelB(anotherPanel)
   :addAt(6, 2, u.slider({ axis = 'y' }))
   :addAt(4, 2, u.label({ text = 'joyX: 0', tag = 'xLabel' }):left())
   :addAt(5, 2, u.label({ text = 'joyY: 0', tag = 'yLabel' }):left())
-  :addAt(4, 1, u.label({ text = '', tag = 'directionLabel' }))
-  :addAt(5, 1, u.label({ text = '', tag = 'lastCoordLabel' }))
+  :addAt(4, 1, u.label({ tag = 'directionLabel' }))
+  :addAt(5, 1, u.label({ tag = 'lastCoordLabel' }))
   :addAt(6, 1, anotherPanel)
 end
 
