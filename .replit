@@ -1,0 +1,6 @@
+run = "love ."
+
+entrypoint = "main.lua"
+
+[nix]
+channel = "stable-23_05"
