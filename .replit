@@ -1,4 +1,7 @@
-compile = "make -s"
-
 run = "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/nix/store/*lua5.3*/lib; love ."
+
 entrypoint = "main.lua"
+
+[nix]
+channel = "stable-23_05"
+
