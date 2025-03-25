@@ -2,7 +2,7 @@ _G.lg = love.graphics
 _G.lm = love.mouse
 
 local urutora = require("urutora")
-local grade_calculator = require "grade_calculator"
+local grade_calculator = require("grade_calculator")
 
 
 local u
