@@ -10,11 +10,11 @@ function love.conf(t)
   t.audio.mic = false
   t.audio.mixwithsystem = true
 
-  t.window.title = 'Urutora'
+  t.window.title = 'Grade Calculator'
   t.window.icon = nil
   t.window.width = 320 * 3
   t.window.height = 180 * 3
-  t.window.borderless = true
+  t.window.borderless = false
   t.window.resizable = true
   t.window.minwidth = 320
   t.window.minheight = 180
