@@ -138,6 +138,7 @@ void WeightedCalculator::calculateGrade() {
     earned_grade = 'F';
   }
 }
+
 void WeightedCalculator::displayResults() const {
   std::cout << std::fixed << std::setprecision(2);
   std::cout << "\nWeighted Grade Calculation Results\n";
@@ -150,6 +151,7 @@ void WeightedCalculator::displayResults() const {
     bonus_points[category.first] = 0.0f;
     possible_points[category.first] = 0.0f;
   }
+
   for (const auto &assignment : assignments) {
     float percentage =
         (assignment.getPointsEarned() / assignment.getPointsPossible()) * 100;
@@ -180,4 +182,8 @@ void WeightedCalculator::displayResults() const {
   }
   std::cout << "Final Weighted Score: " << total_weighted_score << "%"
             << "\nFinal Letter Grade: " << earned_grade << '\n';
+}
+
+void WeightedCalculator::addAssignment(const WeightedAssignment& assignment) {
+  assignments.push_back(assignment);
 }

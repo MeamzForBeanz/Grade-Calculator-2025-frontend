@@ -105,3 +105,7 @@ void UnweightedCalculator::displayResults() const {
             << "Final Percentage: " << total_percentage_earned << "%\n"
             << "Final Letter Grade: " << earned_grade << "\n";
 }
+
+void UnweightedCalculator::addAssignment(const Assignment& assignment) {
+  assignments.push_back(assignment);
+}

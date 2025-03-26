@@ -22,6 +22,7 @@ public:
   void inputAssignments() override;
   void calculateGrade() override;
   void displayResults() const override;
+  void addAssignment(const Assignment& assignment); // New method
 };
 
 #endif

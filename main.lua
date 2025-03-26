@@ -4,7 +4,6 @@ _G.lm = love.mouse
 local urutora = require("urutora")
 local grade_calculator = require("grade_calculator")
 
-
 local u
 require("images")
 require("fonts")
@@ -46,7 +45,6 @@ local function initStuff()
     doResizeStuff(lg.getDimensions())
     transparentCursorImg = love.image.newImageData(1, 1)
     lm.setCursor(lm.newCursor(transparentCursorImg))
-    
 end
 
 -- Reusable function to create a typing text object
@@ -92,38 +90,52 @@ function createTypingText(text, x, y, font, typingSpeed, fadeDuration)
     }
 end
 
+-- Generate dialogue steps based on calculator choice
+local function generateDialogueSteps(choice)
+    local steps = {}
+    if choice == "1" then -- Unweighted
+        steps = {
+            { type = "display", text = "Unweighted Calculator Selected" },
+            { type = "input", prompt = "Enter total course points: ", storeIn = "totalPoints" },
+            { type = "input", prompt = "Enter minimum points for A: ", storeIn = "minA" },
+            { type = "input", prompt = "Enter minimum points for B: ", storeIn = "minB" },
+            { type = "input", prompt = "Enter minimum points for C: ", storeIn = "minC" },
+            { type = "input", prompt = "Enter minimum points for D: ", storeIn = "minD" },
+            { type = "input", prompt = "Enter number of assignments: ", storeIn = "numAssignments" },
+        }
+    elseif choice == "2" then -- Weighted (placeholder)
+        steps = {
+            { type = "display", text = "Weighted Calculator Selected" },
+            { type = "input", prompt = "Enter number of categories: ", storeIn = "numCategories" },
+        }
+    end
+    return steps
+end
+
+-- Generate assignment input steps
+local function generateAssignmentSteps(numAssignments)
+    local steps = {}
+    for i = 1, numAssignments do
+        table.insert(steps, { type = "input", prompt = "Enter assignment " .. i .. " name: ", storeIn = "assignmentName" .. i })
+        table.insert(steps, { type = "input", prompt = "Enter points possible for assignment " .. i .. ": ", storeIn = "pointsPossible" .. i })
+        table.insert(steps, { type = "input", prompt = "Enter points earned for assignment " .. i .. ": ", storeIn = "pointsEarned" .. i })
+        table.insert(steps, { type = "input", prompt = "Is assignment " .. i .. " a bonus? (1 for Yes, 0 for No): ", storeIn = "isBonus" .. i })
+    end
+    return steps
+end
+
 function love.load()
     initStuff()
 
     Dialogue = {
         "Welcome to Hayden Phillip's Grade Calculator for COSC 1436",
-        "Please input the Total Points Possible: ",
-        "Please input the Minimum Points for an A: ",
-        "Please input the Minimum Points for a B: ",
-        "Please input the Minimum Points for a C: ",
-        "Please input the Minimum Points for a D: ",
-        "The Grading Scheme You Input",
-        "Total Points Possible in the Course: ",
-        "Points needed for an 'A': ",
-        "Points needed for a 'B': ",
-        "Points needed for a 'C': ",
-        "Points needed for a 'D': "
+        "Choose calculator type (1 for Unweighted, 2 for Weighted): ",
     }
 
-    -- Define dialogue steps
+    -- Initial dialogue steps
     dialogueSteps = {
         { type = "display", text = Dialogue[1] },
-        { type = "input", prompt = Dialogue[2], storeIn = "totalPoints" },
-        { type = "input", prompt = Dialogue[3], storeIn = "minA" },
-        { type = "input", prompt = Dialogue[4], storeIn = "minB" },
-        { type = "input", prompt = Dialogue[5], storeIn = "minC" },
-        { type = "input", prompt = Dialogue[6], storeIn = "minD" },
-        { type = "display", text = Dialogue[7] },
-        { type = "display", text = function() return Dialogue[8] .. (inputs.totalPoints or "") end },
-        { type = "display", text = function() return Dialogue[9] .. (inputs.minA or "") end },
-        { type = "display", text = function() return Dialogue[10] .. (inputs.minB or "") end },
-        { type = "display", text = function() return Dialogue[11] .. (inputs.minC or "") end },
-        { type = "display", text = function() return Dialogue[12] .. (inputs.minD or "") end },
+        { type = "input", prompt = Dialogue[2], storeIn = "choice" },
     }
 
     -- Initialize state
@@ -133,6 +145,7 @@ function love.load()
     state = "displaying_text"
     typingSpeed = 0.05
     fadeDuration = 0.5
+    resultText = nil
 
     -- UI components
     textInput = u.text({ x = (w - 300) / 2, y = h / 2 - 15, w = 300, h = 30, text = "", visible = false, tag = "inputText" })
@@ -152,12 +165,7 @@ function love.update(dt)
     if state == "displaying_text" then
         if not currentTypingText then
             local step = dialogueSteps[currentStep]
-            local text
-            if step.type == "display" then
-                text = type(step.text) == "function" and step.text() or step.text
-            elseif step.type == "input" then
-                text = step.prompt
-            end
+            local text = step.type == "display" and step.text or step.prompt
             local textWidth = robotoBold:getWidth(text)
             local x = (w - textWidth) / 2
             currentTypingText = createTypingText(text, x, h / 2 - 50, robotoBold, typingSpeed, fadeDuration)
@@ -172,7 +180,6 @@ function love.update(dt)
                 textInput.text = ""
                 errorLabel.visible = false
             end
-            -- Keep currentTypingText for drawing during input
         end
     end
 end
@@ -221,46 +228,13 @@ function love.draw()
         end
     end
 
+    if resultText then
+        lg.print(resultText, 10, 10)
+    end
+
     drawCursor()
     lg.setCanvas()
     lg.draw(canvas, math.floor(canvasX), math.floor(canvasY), 0, sx, sy)
-end
-
-function love.mousepressed(x, y, button)
-    u:pressed(x, y, button)
-    if state == "waiting_for_proceed" then
-        currentStep = currentStep + 1
-        if currentStep > #dialogueSteps then
-            state = "finished"
-        else
-            state = "displaying_text"
-            currentTypingText = nil
-        end
-    elseif state == "waiting_for_input" then
-        local mx, my = u.utils:getMouse()
-        if not (mx >= textInput.x and mx <= textInput.x + textInput.w and my >= textInput.y and my <= textInput.y + textInput.h) then
-            textInput.visible = false
-            errorLabel.visible = false
-            state = "displaying_text"
-            currentTypingText = nil
-        end
-    end
-end
-
-function love.mousemoved(x, y, dx, dy)
-    u:moved(x, y, dx, dy)
-end
-
-function love.mousereleased(x, y, button)
-    u:released(x, y)
-end
-
-function love.textinput(text)
-    u:textinput(text)
-end
-
-function love.wheelmoved(x, y)
-    u:wheelmoved(x, y)
 end
 
 function love.keypressed(k, scancode, isrepeat)
@@ -282,16 +256,52 @@ function love.keypressed(k, scancode, isrepeat)
             errorLabel.text = errorMessages[randomIndex]
             errorLabel.visible = true
         else
-            inputs[dialogueSteps[currentStep].storeIn] = textInput.text
+            local step = dialogueSteps[currentStep]
+            inputs[step.storeIn] = textInput.text
             textInput.visible = false
             errorLabel.visible = false
-            currentStep = currentStep + 1
-            if currentStep > #dialogueSteps then
-                state = "finished"
+
+            -- Handle calculator choice
+            if step.storeIn == "choice" then
+                dialogueSteps = generateDialogueSteps(inputs.choice)
+                currentStep = 1
+            elseif step.storeIn == "numAssignments" then
+                inputs.numAssignments = tonumber(inputs.numAssignments)
+                dialogueSteps = generateAssignmentSteps(inputs.numAssignments)
+                currentStep = 1
             else
-                state = "displaying_text"
-                currentTypingText = nil
+                currentStep = currentStep + 1
+                if currentStep > #dialogueSteps then
+                    if inputs.choice == "1" then
+                        -- Prepare data for C++
+                        local assignments = {}
+                        for i = 1, inputs.numAssignments do
+                            table.insert(assignments, {
+                                inputs["assignmentName" .. i],
+                                tonumber(inputs["pointsPossible" .. i]),
+                                tonumber(inputs["pointsEarned" .. i]),
+                                inputs["isBonus" .. i] == "1"
+                            })
+                        end
+                        -- Call C++ function (assumes it takes type, totals, mins, and assignments)
+                        resultText = grade_calculator.run_calculator(
+                            1, -- Unweighted type
+                            tonumber(inputs.totalPoints),
+                            tonumber(inputs.minA),
+                            tonumber(inputs.minB),
+                            tonumber(inputs.minC),
+                            tonumber(inputs.minD),
+                            assignments
+                        )
+                    elseif inputs.choice == "2" then
+                        -- Placeholder for weighted calculator
+                        resultText = "Weighted calculator not yet implemented."
+                    end
+                    state = "finished"
+                end
             end
+            state = "displaying_text"
+            currentTypingText = nil
         end
     end
 end
