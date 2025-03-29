@@ -2,6 +2,16 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Compile .so",
+            "type": "shell",
+            "command": "clang++ -v -shared -fPIC -o grade_calculator.so grade_calculator.cpp include/assignment.cpp include/unweighted_calculator.cpp include/weighted_assignment.cpp include/weighted_calculator.cpp -Iinclude -llua5.1",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Love2D",
             "type": "shell",
             "command": "love",

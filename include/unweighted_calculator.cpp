@@ -5,7 +5,9 @@
 UnweightedCalculator::UnweightedCalculator()
     : total_course_points(0), total_points_earned(0.0f),
       total_percentage_earned(0.0f), earned_grade('F') {}
-void UnweightedCalculator::setGradingScheme(int total_points, float a_points, float b_points, float c_points, float d_points) {
+void UnweightedCalculator::setGradingScheme(int total_points, float a_points,
+                                            float b_points, float c_points,
+                                            float d_points) {
   total_course_points = total_points;
   A_points = a_points;
   B_points = b_points;
@@ -21,17 +23,17 @@ void UnweightedCalculator::inputAssignments() {
   std::string assignment_name;
   float points_possible, points_earned;
   bool is_bonus;
-  
+
   std::cout << "Grade Calculation\n";
   std::cout << "Enter assignments (input 'done' or 'Done' to finish):\n\n";
-  
+
   while (true) {
     std::cout << "Enter assignment name or 'done' to finish: ";
     std::getline(std::cin >> std::ws, assignment_name);
     if (assignment_name == "done" || assignment_name == "Done") {
       break;
     }
-    
+
     Assignment assignment;
     assignment.setName(assignment_name);
     std::cout << "Enter points possible for " << assignment_name << ": ";
@@ -49,7 +51,7 @@ void UnweightedCalculator::inputAssignments() {
 void UnweightedCalculator::calculateGrade() {
   total_points_earned = 0.0f;
   float bonus_points = 0.0f;
-  
+
   for (const Assignment &assignment : assignments) {
     if (assignment.isBonus()) {
       bonus_points += assignment.getPointsEarned();
@@ -57,10 +59,10 @@ void UnweightedCalculator::calculateGrade() {
       total_points_earned += assignment.getPointsEarned();
     }
   }
-  
+
   total_percentage_earned = (total_points_earned / total_course_points) * 100;
   total_percentage_earned += (bonus_points / total_course_points) * 100;
-  
+
   if (total_percentage_earned >= A_percentage) {
     earned_grade = 'A';
   } else if (total_percentage_earned >= B_percentage) {
@@ -78,7 +80,7 @@ void UnweightedCalculator::displayResults() const {
   std::cout << std::fixed << std::setprecision(2);
   std::cout << "\nUnweighted Grade Calculation Results\n";
   std::cout << "------------------------------------\n";
-  
+
   for (const Assignment &assignment : assignments) {
     float percentage =
         (assignment.getPointsEarned() / assignment.getPointsPossible()) * 100;
@@ -89,14 +91,14 @@ void UnweightedCalculator::displayResults() const {
               << "\n Bonus: " << (assignment.isBonus() ? "Yes" : "No")
               << "\n\n";
   }
-  
+
   float bonus_points = 0.0f;
   for (const Assignment &assignment : assignments) {
     if (assignment.isBonus()) {
       bonus_points += assignment.getPointsEarned();
     }
   }
-  
+
   std::cout << "Regular Points Earned: " << total_points_earned << "\n"
             << "Bonus Points Earned: " << bonus_points << "\n"
             << "Total Points (Including Bonus): "
@@ -106,6 +108,6 @@ void UnweightedCalculator::displayResults() const {
             << "Final Letter Grade: " << earned_grade << "\n";
 }
 
-void UnweightedCalculator::addAssignment(const Assignment& assignment) {
+void UnweightedCalculator::addAssignment(const Assignment &assignment) {
   assignments.push_back(assignment);
 }

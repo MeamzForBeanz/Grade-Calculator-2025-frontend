@@ -47,8 +47,35 @@ local function initStuff()
     lm.setCursor(lm.newCursor(transparentCursorImg))
 end
 
+-- Function to create a shallow copy of the inputs table
+local function copyInputs(inputs)
+    local copy = {}
+    for k, v in pairs(inputs) do
+        copy[k] = v
+    end
+    return copy
+end
+
+local function back()
+    if currentStep > 1 then
+        -- Go back one step within the current phase
+        currentStep = currentStep - 1
+        state = "displaying_text"
+        currentTypingText = nil
+    elseif #stepHistory > 0 then
+        -- Restore the previous phase from the stack
+        local prevState = table.remove(stepHistory)
+        dialogueSteps = prevState.dialogueSteps
+        currentStep = prevState.currentStep
+        inputs = prevState.inputs
+        state = "displaying_text"
+        currentTypingText = nil
+    end
+    -- If currentStep == 1 and no history, do nothing (user is at the start)
+end
+
 -- Reusable function to create a typing text object
-function createTypingText(text, x, y, font, typingSpeed, fadeDuration)
+function createTypingText(text, x, y, font, typingSpeed, fadeDuration, maxWidth)
     return {
         text = text,
         x = x,
@@ -60,6 +87,7 @@ function createTypingText(text, x, y, font, typingSpeed, fadeDuration)
         charTimes = {},
         timer = 0,
         isFinished = false,
+        maxWidth = maxWidth or (w - 20), -- Default to canvas width minus padding
         update = function(self, dt)
             if not self.isFinished then
                 self.timer = self.timer + dt
@@ -75,17 +103,62 @@ function createTypingText(text, x, y, font, typingSpeed, fadeDuration)
         end,
         draw = function(self)
             local currentX = self.x
+            local currentY = self.y
+            local line = ""
+            local lines = {}
+            local word = ""
+
+            -- Split text into lines based on maxWidth
             for i = 1, #self.text do
-                if i < self.currentIndex then
-                    local timeSinceAdded = love.timer.getTime() - self.charTimes[i]
-                    local alpha = math.min(timeSinceAdded / self.fadeDuration, 1)
-                    lg.setColor(1, 1, 1, alpha)
-                    local char = self.text:sub(i, i)
-                    lg.print(char, currentX, self.y)
-                    currentX = currentX + self.font:getWidth(char)
+                local char = self.text:sub(i, i)
+                if char == " " then
+                    if self.font:getWidth(line .. word) > self.maxWidth then
+                        table.insert(lines, line)
+                        line = word .. " "
+                    else
+                        line = line .. word .. " "
+                    end
+                    word = ""
+                else
+                    word = word .. char
                 end
             end
-            lg.setColor(1, 1, 1, 1)
+            -- Handle the last word
+            if word ~= "" then
+                if self.font:getWidth(line .. word) > self.maxWidth then
+                    table.insert(lines, line)
+                    line = word
+                else
+                    line = line .. word
+                end
+            end
+            if line ~= "" then
+                table.insert(lines, line)
+            end
+
+            -- Draw each line with the typing effect
+            local linesSoFar = {}
+            for lineIndex, lineText in ipairs(lines) do
+                currentX = self.x
+                for charIndex = 1, #lineText do
+                    local globalIndex = 0
+                    for i = 1, lineIndex - 1 do
+                        globalIndex = globalIndex + #lines[i] -- Add length of previous lines
+                    end
+                    globalIndex = globalIndex + charIndex -- Add position in current line
+                    if globalIndex <= self.currentIndex then
+                        local timeSinceAdded = love.timer.getTime() - (self.charTimes[globalIndex] or 0)
+                        local alpha = math.min(timeSinceAdded / self.fadeDuration, 1)
+                        lg.setColor(1, 1, 1, alpha)
+                        local char = lineText:sub(charIndex, charIndex)
+                        lg.print(char, currentX, currentY)
+                        currentX = currentX + self.font:getWidth(char)
+                    end
+                end
+                currentY = currentY + self.font:getHeight() + 2 -- Move to next line with spacing
+                table.insert(linesSoFar, lineText)
+            end
+            lg.setColor(1, 1, 1, 1) -- Reset color
         end
     }
 end
@@ -93,7 +166,7 @@ end
 -- Generate dialogue steps based on calculator choice
 local function generateDialogueSteps(choice)
     local steps = {}
-    if choice == "1" then -- Unweighted
+    if choice == "1" then
         steps = {
             { type = "display", text = "Unweighted Calculator Selected" },
             { type = "input", prompt = "Enter total course points: ", storeIn = "totalPoints" },
@@ -103,14 +176,19 @@ local function generateDialogueSteps(choice)
             { type = "input", prompt = "Enter minimum points for D: ", storeIn = "minD" },
             { type = "input", prompt = "Enter number of assignments: ", storeIn = "numAssignments" },
         }
-    elseif choice == "2" then -- Weighted (placeholder)
+    elseif choice == "2" then
         steps = {
             { type = "display", text = "Weighted Calculator Selected" },
             { type = "input", prompt = "Enter number of categories: ", storeIn = "numCategories" },
         }
+    else
+        steps = {
+            { type = "display", text = "Invalid choice. Please restart and select 1 or 2." }
+        }
     end
     return steps
 end
+
 
 -- Generate assignment input steps
 local function generateAssignmentSteps(numAssignments)
@@ -122,6 +200,84 @@ local function generateAssignmentSteps(numAssignments)
         table.insert(steps, { type = "input", prompt = "Is assignment " .. i .. " a bonus? (1 for Yes, 0 for No): ", storeIn = "isBonus" .. i })
     end
     return steps
+end
+
+local function next()
+    if textInput.text == "" then
+        local randomIndex = love.math.random(1, #errorMessages)
+        errorLabel.text = errorMessages[randomIndex]
+        errorLabel.visible = true
+    else
+        local step = dialogueSteps[currentStep]
+        inputs[step.storeIn] = textInput.text
+        textInput.visible = false
+        errorLabel.visible = false
+
+        if step.storeIn == "choice" then
+            -- Save current state before generating new steps
+            table.insert(stepHistory, {dialogueSteps = dialogueSteps, currentStep = currentStep, inputs = copyInputs(inputs)})
+            dialogueSteps = generateDialogueSteps(inputs.choice)
+            currentStep = 1
+            if #dialogueSteps == 0 then
+                print("Error: Invalid choice or no steps generated.")
+                state = "finished"
+                return
+            end
+            state = "displaying_text"
+            currentTypingText = nil
+        elseif step.storeIn == "numAssignments" then
+            local num = tonumber(inputs.numAssignments)
+            if num and num > 0 then
+                -- Save current state before generating assignment steps
+                table.insert(stepHistory, {dialogueSteps = dialogueSteps, currentStep = currentStep, inputs = copyInputs(inputs)})
+                inputs.numAssignments = num
+                dialogueSteps = generateAssignmentSteps(inputs.numAssignments)
+                currentStep = 1
+                if #dialogueSteps == 0 then
+                    print("Error: No assignments to input.")
+                    state = "finished"
+                    return
+                end
+                state = "displaying_text"
+                currentTypingText = nil
+            else
+                print("Error: Invalid number of assignments.")
+                errorLabel.text = "Please enter a positive number."
+                errorLabel.visible = true
+                return
+            end
+        else
+            currentStep = currentStep + 1
+            if currentStep > #dialogueSteps then
+                if inputs.choice == "1" then
+                    local assignments = {}
+                    for i = 1, inputs.numAssignments do
+                        table.insert(assignments, {
+                            inputs["assignmentName" .. i],
+                            tonumber(inputs["pointsPossible" .. i]),
+                            tonumber(inputs["pointsEarned" .. i]),
+                            inputs["isBonus" .. i] == 1
+                        })
+                    end
+                    resultText = grade_calculator.run_calculator(
+                        1,
+                        tonumber(inputs.totalPoints),
+                        tonumber(inputs.minA),
+                        tonumber(inputs.minB),
+                        tonumber(inputs.minC),
+                        tonumber(inputs.minD),
+                        assignments
+                    )
+                elseif inputs.choice == "2" then
+                    resultText = "Weighted calculator not yet implemented."
+                end
+                state = "finished"
+            else
+                state = "displaying_text"
+                currentTypingText = nil
+            end
+        end
+    end
 end
 
 function love.load()
@@ -146,11 +302,19 @@ function love.load()
     typingSpeed = 0.05
     fadeDuration = 0.5
     resultText = nil
+    stepHistory = {}  -- Stack to track step history
 
     -- UI components
     textInput = u.text({ x = (w - 300) / 2, y = h / 2 - 15, w = 300, h = 30, text = "", visible = false, tag = "inputText" })
         :setStyle({ font = robotoBold })
     u:add(textInput)
+    textInput.visible=false
+
+    -- Add back button at bottom left
+    backButton = u.button({ text = 'Back', x = 10, y = 150, w = 50, h = 20 })
+    u:add(backButton)
+    backButton:action(function(evt) back() end)
+
     errorLabel = { text = "", visible = false, y = h / 2 + 20 }
     errorMessages = { "Please enter a value.", "Input cannot be empty.", "You must provide a value." }
 end
@@ -166,9 +330,8 @@ function love.update(dt)
         if not currentTypingText then
             local step = dialogueSteps[currentStep]
             local text = step.type == "display" and step.text or step.prompt
-            local textWidth = robotoBold:getWidth(text)
-            local x = (w - textWidth) / 2
-            currentTypingText = createTypingText(text, x, h / 2 - 50, robotoBold, typingSpeed, fadeDuration)
+            local x = 10
+            currentTypingText = createTypingText(text, x, h / 2 - 50, robotoBold, typingSpeed, fadeDuration, w - 20)
         end
         currentTypingText:update(dt)
         if currentTypingText.isFinished then
@@ -177,7 +340,7 @@ function love.update(dt)
             elseif dialogueSteps[currentStep].type == "input" then
                 state = "waiting_for_input"
                 textInput.visible = true
-                textInput.text = ""
+                textInput.text = inputs[dialogueSteps[currentStep].storeIn] or ""
                 errorLabel.visible = false
             end
         end
@@ -217,15 +380,14 @@ function love.draw()
         currentTypingText:draw()
     end
 
-    if state == "waiting_for_input" then
-        u:draw() -- Draws the textbox
-        if errorLabel.visible then
-            local textWidth = robotoBold:getWidth(errorLabel.text)
-            local x = (w - textWidth) / 2
-            lg.setColor(1, 0, 0)
-            lg.print(errorLabel.text, x, errorLabel.y)
-            lg.setColor(1, 1, 1)
-        end
+    u:draw() -- Always draw Urutora elements (back button and text input when visible)
+
+    if state == "waiting_for_input" and errorLabel.visible then
+        local textWidth = robotoBold:getWidth(errorLabel.text)
+        local x = (w - textWidth) / 2
+        lg.setColor(1, 0, 0)
+        lg.print(errorLabel.text, x, errorLabel.y)
+        lg.setColor(1, 1, 1)
     end
 
     if resultText then
@@ -235,6 +397,26 @@ function love.draw()
     drawCursor()
     lg.setCanvas()
     lg.draw(canvas, math.floor(canvasX), math.floor(canvasY), 0, sx, sy)
+end
+
+function love.resize(w, h)
+    doResizeStuff(w, h)
+end
+
+function love.mousemoved(x, y, dx, dy)
+    u:moved(x, y, dx, dy)
+end
+
+function love.mousereleased(x, y, button)
+    u:released(x, y)
+end
+
+function love.textinput(text)
+    u:textinput(text)
+end
+
+function love.wheelmoved(x, y)
+    u:wheelmoved(x, y)
 end
 
 function love.keypressed(k, scancode, isrepeat)
@@ -255,57 +437,29 @@ function love.keypressed(k, scancode, isrepeat)
             local randomIndex = love.math.random(1, #errorMessages)
             errorLabel.text = errorMessages[randomIndex]
             errorLabel.visible = true
+        else next() end
+    end
+end
+
+function love.mousepressed(x, y, button)
+    u:pressed(x, y, button)
+    if state == "waiting_for_proceed" then
+        currentStep = currentStep + 1
+        if currentStep > #dialogueSteps then
+            state = "finished"
         else
-            local step = dialogueSteps[currentStep]
-            inputs[step.storeIn] = textInput.text
+            state = "displaying_text"
+            currentTypingText = nil
+        end
+    elseif state == "waiting_for_input" then
+        local mx, my = u.utils:getMouse()
+        if not (mx >= textInput.x and mx <= textInput.x + textInput.w and my >= textInput.y and my <= textInput.y + textInput.h) then
             textInput.visible = false
             errorLabel.visible = false
-
-            -- Handle calculator choice
-            if step.storeIn == "choice" then
-                dialogueSteps = generateDialogueSteps(inputs.choice)
-                currentStep = 1
-            elseif step.storeIn == "numAssignments" then
-                inputs.numAssignments = tonumber(inputs.numAssignments)
-                dialogueSteps = generateAssignmentSteps(inputs.numAssignments)
-                currentStep = 1
-            else
-                currentStep = currentStep + 1
-                if currentStep > #dialogueSteps then
-                    if inputs.choice == "1" then
-                        -- Prepare data for C++
-                        local assignments = {}
-                        for i = 1, inputs.numAssignments do
-                            table.insert(assignments, {
-                                inputs["assignmentName" .. i],
-                                tonumber(inputs["pointsPossible" .. i]),
-                                tonumber(inputs["pointsEarned" .. i]),
-                                inputs["isBonus" .. i] == "1"
-                            })
-                        end
-                        -- Call C++ function (assumes it takes type, totals, mins, and assignments)
-                        resultText = grade_calculator.run_calculator(
-                            1, -- Unweighted type
-                            tonumber(inputs.totalPoints),
-                            tonumber(inputs.minA),
-                            tonumber(inputs.minB),
-                            tonumber(inputs.minC),
-                            tonumber(inputs.minD),
-                            assignments
-                        )
-                    elseif inputs.choice == "2" then
-                        -- Placeholder for weighted calculator
-                        resultText = "Weighted calculator not yet implemented."
-                    end
-                    state = "finished"
-                end
-            end
             state = "displaying_text"
             currentTypingText = nil
         end
     end
 end
 
-function love.resize(w, h)
-    doResizeStuff(w, h)
-end
+
