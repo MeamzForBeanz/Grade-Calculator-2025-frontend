@@ -183,7 +183,7 @@ local function generateDialogueSteps(choice)
         }
     else
         steps = {
-            { type = "display", text = "Invalid choice. Please restart and select 1 or 2." }
+            { type = "display", text = "Invalid choice. Please click back and enter 1 or 2." }
         }
     end
     return steps

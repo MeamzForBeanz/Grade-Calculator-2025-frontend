@@ -319,10 +319,11 @@ function love.draw()
   -- lg.print('FPS: ' .. love.timer.getFPS())
 end
 
-function love.mousepressed(x, y, button) u:pressed(x, y, button) end
+function love.mousepressed(x, y, button) u:pressed(x, y) end
 function love.mousemoved(x, y, dx, dy) u:moved(x, y, dx, dy) end
 function love.mousereleased(x, y, button) u:released(x, y) end
 function love.textinput(text) u:textinput(text) end
+function love.keypressed(k, scancode, isrepeat) u:keypressed(k, scancode, isrepeat) end
 function love.wheelmoved(x, y) u:wheelmoved(x, y) end
 
 function love.keypressed(k, scancode, isrepeat)
