@@ -1,3 +1,6 @@
+
 {
-    "Open command pallet": true
+    "Open command pallet": true,
+    "stylua.targetReleaseVersion": "latest",
+    "editor.defaultFormatter": "JohnnyMorganz.stylua"
 }
