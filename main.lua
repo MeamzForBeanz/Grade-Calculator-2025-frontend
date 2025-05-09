@@ -41,6 +41,26 @@ local function doResizeStuff(w, h)
 	u.setDimensions(canvasX, canvasY, sx, sy)
 end
 
+local function updateResultLabel()
+	local text = resultLabel.text or ""
+	-- split lines and measure
+	local lines, maxW = {}, 0
+	for line in text:gmatch("[^\n]+") do
+		lines[#lines + 1] = line
+		maxW = math.max(maxW, currentStyle.font:getWidth(line))
+	end
+	local lineH = currentStyle.font:getHeight()
+	local totalH = #lines * lineH + (#lines - 1) * 2
+
+	-- resize label to fit text
+	resultLabel.w = math.min(maxW, resultPanel.w - 4) -- leave a 2px inset
+	resultLabel.h = totalH
+
+	-- center label inside panel horizontally
+	resultLabel.x = (resultPanel.w - resultLabel.w) / 2
+	resultLabel.y = 0 -- top of panel; panel scroll handles remainder
+end
+
 local function initStuff()
 	u = urutora:new()
 	initCanvasStuff()
@@ -58,31 +78,6 @@ local function copyInputs(inputs)
 	end
 	return copy
 end
-
-local function updateResultLabel()
-    local text = resultLabel.text or ""
-    -- split into lines
-    local lines = {}
-    for line in text:gmatch("[^\n]+") do
-        lines[#lines+1] = line
-    end
-
-    -- measure
-    local font = currentStyle.font
-    local maxW = 0
-    for _, line in ipairs(lines) do
-        maxW = math.max( maxW, font:getWidth(line) )
-    end
-    local lineH = font:getHeight()
-    local totalH = #lines * lineH + (#lines-1)*2  -- 2px spacing
-
-    -- apply to label
-    resultLabel.w = maxW
-    resultLabel.h = totalH
-    resultLabel.x = (w - maxW) / 2
-    resultLabel.y = (h - totalH) / 2
-end
-
 
 -- removes any on‑screen choice buttons
 local function clearChoiceButtons()
@@ -319,7 +314,7 @@ local function next()
 
 		if currentStep > #dialogueSteps then
 			-- C++ time!
-            backButton.visible = false
+			backButton.visible = false
 			-- Unweighted calculation
 			if inputs.choice == "1" then
 				local assignments = {}
@@ -361,12 +356,11 @@ local function next()
 				-- Run the C++ binding
 				resultText = grade_calculator.run_calculator(2, category_weights, assignments)
 			end
-            resultLabel.text = resultText
-            resultLabel.visible = true
-            updateResultLabel()
-            state = "finished"
-            return
-        
+			resultLabel.text = resultText
+			resultPanel.visible = true
+			updateResultLabel()
+			state = "finished"
+			return
 		end
 
 		state = "displaying_text"
@@ -480,23 +474,22 @@ function generateChoiceButtons()
 	local startX = (w - totalW) / 2
 	local y = h / 2 + 20
 
-    for i, txt in ipairs(choices) do
-        local btn = u.button({
-          text = txt,
-          x    = startX + (i - 1) * (btnW + spacing),
-          y    = y,
-          w    = btnW,
-          h    = btnH,
-        })
-        btn:setStyle(currentStyle)    -- ← use full style
-        btn:action(function(evt)
-          inputs[step.storeIn] = tostring(i)
-          next()
-        end)
-        u:add(btn)
-        table.insert(btns, btn)
-      end
-      
+	for i, txt in ipairs(choices) do
+		local btn = u.button({
+			text = txt,
+			x = startX + (i - 1) * (btnW + spacing),
+			y = y,
+			w = btnW,
+			h = btnH,
+		})
+		btn:setStyle(currentStyle) -- ← use full style
+		btn:action(function(evt)
+			inputs[step.storeIn] = tostring(i)
+			next()
+		end)
+		u:add(btn)
+		table.insert(btns, btn)
+	end
 
 	return btns
 end
@@ -532,14 +525,43 @@ end
 function love.load()
 	initStuff()
 
-	-- Create UI elements and add them directly to the Urutora instance 'u'
+	-- Create UI elements
 	textInput = u.text({ x = (w - 300) / 2, y = h / 2 - 15, w = 300, h = 30, text = "", tag = "inputText" })
 	u:add(textInput)
 	textInput.visible = false
 
-	resultLabel = u.label({ text = "", x = 10, y = 10, w = w - 20, h = 20, visible = false })
-	u:add(resultLabel)
+	resultPanel = u.panel({
+		x = (w - 320) / 2,
+		y = (h - 200) / 2,
+		w = 320,
+		h = 200,
+		rows = 0, -- unlimited rows: single column
+		cols = 2, -- two columns: content + slider
+		scrollSpeed = 1 / 10,
+		showScrollBar = true, -- we’ll add our own slider
+		tag = "resultPanel",
+	})
+	u:add(resultPanel)
 
+	-- 2) Create the vertical slider
+
+	-- Place slider in column 2, spanning all rows
+	resultPanel
+		:colspanAt(1, 2, 1) -- at row 1, col 2, span 1 column
+		:rowspanAt(1, 2, resultPanel.rows)
+
+	-- 3) Create the resultLabel
+	resultLabel = u.label({
+		text = "",
+		x = 0,
+		y = 0,
+		w = resultPanel.w - 20, -- leave room for padding
+		h = 0, -- will be set by updateResultLabel()
+		visible = false,
+	})
+	-- add into the first column of our two‑col grid:
+	resultPanel:colspanAt(1, 1, 1):rowspanAt(1, 1, resultPanel.rows):addAt(1, 1, resultLabel)
+	
 	-- Add style selector button
 	backButton = u.button({ text = "Back", x = 10, y = 150, w = 50, h = 20 })
 	u:add(backButton)
@@ -558,10 +580,9 @@ function love.load()
 	currentStyleIndex = 2 -- Start with oliveStyle (assuming index 2)
 	styleManager.handleStyleChanges(u, { index = currentStyleIndex })
 
-
 	currentStyle = styleManager.styles[currentStyleIndex]
 	bgColor = currentStyle.bgColor
-    u:setStyle(currentStyle, u.utils.nodeTypes.BUTTON)
+	u:setStyle(currentStyle, u.utils.nodeTypes.BUTTON)
 
 	Dialogue = {
 		"Welcome to Hayden Phillips' Grade Calculator for COSC 1436",
